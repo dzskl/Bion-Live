@@ -5,6 +5,7 @@ import { Panel } from './components/Panel';
 import { ProductsEditor } from './components/Products';
 import { SettingsPage } from './components/SettingsPage';
 import { Wizard } from './components/Wizard';
+import { Login } from './components/Login';
 import { Dot } from './components/ui';
 import type { Faults, PublicSettings, SafetyInfo, Snapshot, VoiceOption } from './types';
 
@@ -25,8 +26,15 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('painel');
   const [wizard, setWizard] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [acesso, setAcesso] = useState<{ exigeSenha: boolean; autenticado: boolean } | null>(null);
 
   const reload = useCallback(async () => {
+    const estado = await api.authStatus();
+    setAcesso(estado);
+    if (estado.exigeSenha && !estado.autenticado) {
+      setSnap(null);
+      return;
+    }
     const [live, cfg, sim] = await Promise.all([api.state(), api.settings(), api.simulator()]);
     const { voice, safety, hasElevenLabsKey, ...rest } = live;
     setSnap(rest);
@@ -42,8 +50,10 @@ export default function App() {
   }, [reload]);
 
   // O estado do servidor chega por SSE: o painel nunca fica desatualizado
-  // enquanto o lojista esta olhando para ele.
+  // enquanto o lojista esta olhando para ele. So conecta depois do login, senao
+  // o EventSource fica tentando de novo contra um 401.
   useEffect(() => {
+    if (acesso?.exigeSenha && !acesso.autenticado) return;
     const source = new EventSource('/api/live/stream');
     source.addEventListener('state', (event) => {
       setOffline(false);
@@ -57,13 +67,17 @@ export default function App() {
     source.onerror = () => setOffline(true);
     source.onopen = () => setOffline(false);
     return () => source.close();
-  }, []);
+  }, [acesso?.exigeSenha, acesso?.autenticado]);
 
   // A voz pode mudar em Ajustes no meio da live: reconfigura sem reiniciar nada.
   useEffect(() => {
     if (!extras) return;
     void narrator.configure(extras.voice, extras.hasElevenLabsKey, extras.safety.url);
   }, [extras?.voice.id, extras?.hasElevenLabsKey, extras?.safety.url]);
+
+  if (acesso?.exigeSenha && !acesso.autenticado) {
+    return <Login onEntrar={reload} />;
+  }
 
   if (!snap || !settings || !extras) {
     return (
@@ -95,6 +109,16 @@ export default function App() {
               {item === 'painel' ? 'Painel' : item === 'produtos' ? 'Produtos' : 'Ajustes'}
             </button>
           ))}
+          {acesso?.exigeSenha && (
+            <button
+              onClick={async () => {
+                await api.logout();
+                await reload();
+              }}
+            >
+              Sair
+            </button>
+          )}
         </nav>
       </header>
 

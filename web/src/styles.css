@@ -180,3 +180,7 @@ audio { width: 100%; }
   .product-form { grid-template-columns: 1fr; }
   .topbar { flex-direction: column; align-items: stretch; }
 }
+
+.login { display: grid; place-items: center; min-height: 100vh; padding: 20px; }
+.login .card { width: min(360px, 100%); display: flex; flex-direction: column; gap: 12px; text-align: center; }
+.login h1 { font-size: 22px; }

@@ -1,0 +1,24 @@
+# Render: https://render.com  (New -> Blueprint -> aponte para este repositorio)
+services:
+  - type: web
+    name: bion-live
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter # o plano gratuito hiberna e nao tem disco: o watchdog perderia o alerta
+    region: oregon
+    healthCheckPath: /api/health
+    envVars:
+      - key: BION_DATA_DIR
+        value: /data
+      - key: BION_SENHA
+        sync: false # defina no painel do Render antes do primeiro deploy
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+    disk:
+      name: bion-dados
+      mountPath: /data
+      sizeGB: 1

@@ -3,6 +3,7 @@ import cors from 'cors';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PORT, SAFETY_DIR, WEB_DIST } from './config.js';
+import { authRouter, exigeSenha, protegido } from './auth.js';
 import { startWatchdog } from './engine.js';
 import { ensureDefaultSafetyAudio } from './safety.js';
 import { productsRouter } from './routes/products.js';
@@ -16,12 +17,20 @@ import { simulatorRouter } from './routes/simulator.js';
 
 ensureDefaultSafetyAudio();
 
+const producao = process.env.NODE_ENV === 'production';
+
 const app = express();
-app.use(cors());
+// Atras do proxy da hospedagem: precisa para IP real no freio de senha e para
+// marcar o cookie como `secure` quando a conexao chega por HTTPS.
+if (producao) app.set('trust proxy', 1);
+// Em producao a interface e servida pelo mesmo processo, entao CORS so atrapalha.
+if (!producao) app.use(cors({ origin: true, credentials: true }));
 app.use('/api/safety/recording', express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '10mb' }));
 app.use(express.json({ limit: '1mb' }));
+app.use(protegido);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, product: 'Bion Live', version: '0.1.0' }));
+app.use('/api/auth', authRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/live', liveRouter);
@@ -53,6 +62,11 @@ startWatchdog();
 app.listen(PORT, () => {
   console.log(`\n  Bion Live rodando em http://localhost:${PORT}`);
   if (!fs.existsSync(WEB_DIST)) {
-    console.log(`  Interface em modo dev: http://localhost:5173\n`);
+    console.log(`  Interface em modo dev: http://localhost:5173`);
   }
+  console.log(
+    exigeSenha
+      ? '  Acesso protegido por senha (BION_SENHA).\n'
+      : '  Sem senha: defina BION_SENHA antes de expor numa URL publica.\n',
+  );
 });

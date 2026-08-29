@@ -18,6 +18,10 @@ const post = <T>(path: string, data?: unknown) =>
   request<T>(path, { method: 'POST', body: data === undefined ? undefined : JSON.stringify(data) });
 
 export const api = {
+  authStatus: () => request<{ exigeSenha: boolean; autenticado: boolean }>('/api/auth/status'),
+  login: (senha: string) => post<{ ok: boolean }>('/api/auth/login', { senha }),
+  logout: () => post<{ ok: true }>('/api/auth/logout'),
+
   state: () => request<Snapshot & { voice: VoiceOption; safety: SafetyInfo; hasElevenLabsKey: boolean }>('/api/live/state'),
   products: () => request<{ products: Product[] }>('/api/products'),
   createProduct: (data: { name: string; price: string; highlight: string }) => post<{ product: Product }>('/api/products', data),

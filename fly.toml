@@ -1,0 +1,34 @@
+# Fly.io: fly launch --no-deploy && fly volumes create bion_dados --size 1 && fly deploy
+app = "bion-live"
+primary_region = "gru" # Sao Paulo
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "4000"
+  BION_DATA_DIR = "/data"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_start_machines = true
+  # A maquina NAO pode hibernar: o watchdog precisa estar de pe justamente
+  # quando o navegador do lojista morre e para de mandar requisicao.
+  auto_stop_machines = false
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/api/health"
+
+[[mounts]]
+  source = "bion_dados"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

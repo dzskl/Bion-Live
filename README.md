@@ -56,8 +56,12 @@ Abra <http://localhost:5173>. Em produção é um comando e uma porta só:
 npm run build && npm start   # tudo em http://localhost:4000
 ```
 
-Nada é obrigatório no `.env`. Copie `.env.example` se quiser ligar voz premium ou Telegram por variável de
-ambiente em vez de pela interface.
+Nada é obrigatório no `.env` para uso local. Copie `.env.example` se quiser ligar voz premium ou Telegram por
+variável de ambiente em vez de pela interface.
+
+Para expor numa URL pública, defina `BION_SENHA` — a interface passa a pedir login e a API fica fechada. Sem ela
+não há trava alguma: os produtos, o token do Telegram, a chave da ElevenLabs e o botão de encerrar a live ficam
+abertos para quem tiver o link.
 
 ## Testando o fluxo completo
 
@@ -84,6 +88,76 @@ Manual, para ver e ouvir:
 7. **Pausar e assumir eu mesmo** e depois **Devolver para a IA**: nada precisa ser reconfigurado.
 
 Testes de unidade do roteiro: `npm test`.
+
+## Colocando no ar
+
+### Por que não Vercel (nem Netlify, nem Cloudflare Pages)
+
+Essas plataformas rodam funções serverless: sobem para atender uma requisição e morrem. O Bion Live precisa
+exatamente do contrário em dois pontos que não são negociáveis:
+
+- **O watchdog é um processo vivo.** Ele existe para perceber que o navegador do lojista morreu — ou seja, para
+  agir justamente quando *não há* mais nenhuma requisição chegando. Numa função serverless não há processo para
+  perceber isso, e o alerta mais importante do produto simplesmente nunca sai.
+- **O banco é um arquivo em disco.** Serverless não tem disco que sobrevive; produtos, voz e tokens sumiriam a
+  cada deploy.
+
+Também dependem de estado em memória compartilhado entre requisições (saúde, cursor do roteiro, conexões SSE
+abertas), que múltiplas instâncias efêmeras não têm.
+
+Dá para separar frontend na Vercel e servidor em outro lugar, mas isso é mais peça para manter sem ganho nenhum:
+o servidor já entrega a interface.
+
+### O que a hospedagem precisa ter
+
+1. Processo Node sempre de pé, **sem hibernar por inatividade**.
+2. Disco persistente montado em `/data`.
+3. `BION_SENHA` definida — sem ela, qualquer um com o link controla a live.
+
+### Render (o caminho mais curto)
+
+O repositório já tem `render.yaml`. No painel: **New → Blueprint** → aponte para este repositório → defina
+`BION_SENHA` quando pedir. Ele cria o serviço Docker, o disco de 1 GB em `/data` e o health check sozinho.
+
+O plano gratuito **não serve**: hiberna após 15 min sem tráfego e não tem disco. O `starter` (US$ 7/mês) resolve os
+dois.
+
+### Railway
+
+**New Project → Deploy from GitHub repo**. O `railway.json` já aponta para o Dockerfile. Em seguida, no painel:
+adicione um *Volume* montado em `/data` e as variáveis `BION_DATA_DIR=/data` e `BION_SENHA`.
+
+### Fly.io
+
+```bash
+fly launch --no-deploy          # já existe fly.toml, aceite o que ele propõe
+fly volumes create bion_dados --size 1 --region gru
+fly secrets set BION_SENHA=escolha-uma-senha-forte
+fly deploy
+```
+
+O `fly.toml` já vem com `auto_stop_machines = false` — não mude isso, é o que impede a máquina de hibernar e
+engolir o alerta.
+
+### VPS ou qualquer lugar com Docker
+
+```bash
+docker build -t bion-live .
+docker run -d --name bion-live -p 80:4000 \
+  -v bion-dados:/data \
+  -e BION_SENHA=escolha-uma-senha-forte \
+  --restart unless-stopped bion-live
+```
+
+Coloque um proxy com HTTPS na frente (Caddy resolve em duas linhas). O cookie de sessão só vira `secure` sob HTTPS.
+
+### Depois do deploy
+
+- Abra a URL, entre com a senha e refaça o assistente (a instalação nova começa vazia).
+- Configure o Telegram **antes** da primeira live de verdade: é ele que transforma o failover em algo que você
+  percebe longe do computador.
+- O áudio continua tocando no **seu** navegador, não no servidor. A hospedagem cuida do roteiro, da saúde e dos
+  alertas; o som sai da máquina de onde você transmite.
 
 ## Fora do MVP, de propósito
 
