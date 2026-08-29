@@ -97,13 +97,18 @@ export async function runChecks(): Promise<Check[]> {
 
   if (hosp.quedas24h.length > 0) {
     const minutos = Math.round(hosp.maiorQueda24hSegundos / 60);
+    const n = hosp.quedas24h.length;
+    // Deploy e hibernação deixam o mesmo rastro: processo fora do ar. Daqui não
+    // dá para distinguir os dois, então apresentamos a evidência e quem sabe a
+    // resposta é o lojista. Chamar de hibernação sem ter certeza seria inventar.
     checks.push({
       id: 'hibernacao',
       label: 'O servidor fica de pé o tempo todo',
-      status: hosp.hibernando ? 'fail' : 'warn',
-      detail: hosp.hibernando
-        ? `${hosp.quedas24h.length} quedas nas últimas 24h, a maior de ${minutos} min. Isso é padrão de plano que hiberna — e servidor hibernado não dispara alerta de falha.`
-        : `${hosp.quedas24h.length} interrupção(ões) nas últimas 24h, a maior de ${minutos} min. Normal se você fez deploy; preocupante se não fez.`,
+      status: 'warn',
+      detail:
+        `O servidor esteve fora do ar ${n} ${n === 1 ? 'vez' : 'vezes'} nas últimas 24h (a maior, ${minutos} min). ` +
+        `Se você fez ${n === 1 ? 'um deploy' : `${n} deploys`} nesse período, é isso e está tudo bem. ` +
+        'Se não fez, o plano está hibernando por inatividade — e servidor hibernado não dispara alerta de falha.',
     });
   }
 

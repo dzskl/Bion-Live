@@ -76,10 +76,10 @@ app.listen(PORT, () => {
       ? `  Disco confirmado: ${hospedagem.boots} boots e os dados continuam aqui.`
       : '  Primeiro boot registrado. Reinicie uma vez para confirmar que o disco guarda.',
   );
-  if (hospedagem.hibernando) {
+  if (hospedagem.quedas24h.length > 0) {
     console.warn(
-      `  ATENÇÃO: ${hospedagem.quedas24h.length} quedas nas últimas 24h (maior: ${hospedagem.maiorQueda24hSegundos}s).` +
-        ' Plano que hiberna desliga o watchdog de failover na prática.',
+      `  Fora do ar ${hospedagem.quedas24h.length}x nas últimas 24h (maior: ${hospedagem.maiorQueda24hSegundos}s).` +
+        ' Deploys explicam isso; se não houve deploys, o plano está hibernando.',
     );
   }
   console.log('');

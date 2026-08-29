@@ -85,8 +85,9 @@ export function diagnostico(): DiagnosticoHospedagem {
     persistenciaConfirmada: boots > 1,
     quedas24h: quedas.slice(0, 10),
     maiorQueda24hSegundos: maior,
-    // Duas ou mais quedas longas em 24h e o padrao de plano que hiberna por
-    // inatividade, nao de deploy manual.
+    // Sinal, nao veredito: deploy e hibernacao deixam o mesmo rastro. Quem
+    // sabe se houve deploy e o lojista, entao a interface pergunta em vez de
+    // afirmar.
     hibernando: quedas.filter((q) => q.segundos >= 300).length >= 2,
   };
 }

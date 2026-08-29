@@ -39,10 +39,20 @@ test('reinicio rapido de deploy nao conta como queda', () => {
   assert.equal(diagnostico().quedas24h.length, antes, 'deploy normal nao pode virar alarme falso');
 });
 
-test('quedas longas e repetidas sao diagnosticadas como hibernacao', () => {
+test('quedas longas e repetidas levantam o sinal de hibernacao', () => {
   assert.equal(diagnostico().hibernando, false, 'uma queda so nao e padrao');
   const agora = Date.now();
   db.prepare('INSERT INTO quedas (de, ate, segundos) VALUES (?, ?, ?)').run(agora - 3_600_000, agora - 3_000_000, 600);
-  assert.equal(diagnostico().hibernando, true, 'duas quedas longas em 24h e o padrao de plano que hiberna');
+  assert.equal(diagnostico().hibernando, true, 'duas quedas longas em 24h levantam o sinal');
   pararPulso();
+});
+
+test('quedas fora da janela de 24h saem do diagnostico', () => {
+  const doisDiasAtras = Date.now() - 48 * 60 * 60 * 1000;
+  db.prepare('INSERT INTO quedas (de, ate, segundos) VALUES (?, ?, ?)').run(doisDiasAtras, doisDiasAtras + 600_000, 600);
+  const d = diagnostico();
+  assert.ok(
+    d.quedas24h.every((q) => q.ate >= Date.now() - 24 * 60 * 60 * 1000),
+    'queda antiga nao pode continuar assombrando o painel',
+  );
 });
