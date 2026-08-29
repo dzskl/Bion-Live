@@ -45,6 +45,20 @@ Quando qualquer camada acima volta a responder, o sistema sobe sozinho e manda o
 Todo alerta sempre aparece no painel, mesmo que o Telegram esteja fora do ar — alerta que some porque o canal
 falhou seria o pior bug possível num produto que vende confiabilidade.
 
+## A interface
+
+Navegação lateral em três seções. **Principal** (Início, Painel da live, Produtos, Vozes) é o que funciona hoje.
+**Configuração** tem Instalação e Ajustes. **Em breve** mostra para onde o produto caminha — e cada item ali é inerte
+de propósito: clicar abre uma tela que diz, na primeira linha, que aquilo ainda não existe. Sem cadeado, porque
+cadeado sugere que já está construído atrás dele e basta assinar.
+
+A tela de Instalação compara lado a lado o que o Bion Live exige (três passos, nenhum técnico) com o método que
+ferramentas baseadas em extensão e cabo de áudio virtual exigem (cinco, três deles técnicos). Não é cosmética: é a
+diferença que decide se o lojista vai ao ar hoje ou no fim de semana.
+
+Tema escuro, uma cor de marca só, e a tipografia é a pilha do sistema de propósito — a interface já subiu sem folha
+de estilo uma vez num deploy, e uma fonte baixada de terceiro seria mais um arquivo para faltar bem na hora da live.
+
 ## O produto se diagnostica sozinho
 
 Duas perguntas sobre a hospedagem só se respondem com o tempo, e nenhum lojista deveria ter que caçar a resposta

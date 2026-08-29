@@ -1,22 +1,19 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import type { PublicSettings, SafetyInfo, VoiceOption } from '../types';
+import type { PublicSettings, SafetyInfo } from '../types';
 import { Checks } from './Checks';
 import { SafetyAudio } from './SafetyAudio';
 import { StreamGuide } from './StreamGuide';
 import { TelegramSetup } from './TelegramSetup';
-import { VoicePicker } from './VoicePicker';
 import { Banner, Card, Field } from './ui';
 
 export function SettingsPage({
   settings,
-  voices,
   safety,
   onReload,
   onRestartWizard,
 }: {
   settings: PublicSettings;
-  voices: VoiceOption[];
   safety: SafetyInfo;
   onReload: () => Promise<void>;
   onRestartWizard: () => void;
@@ -36,17 +33,14 @@ export function SettingsPage({
         <Checks />
       </Card>
 
-      <Card title="Loja e voz">
-        <div className="stack">
-          <Field label="Nome da loja">
-            <input
-              value={storeName}
-              onChange={(e) => setStoreName(e.target.value)}
-              onBlur={() => void api.saveSettings({ storeName: storeName.trim() }).then(onReload)}
-            />
-          </Field>
-          <VoicePicker voices={voices} selected={settings.voiceId} onSelect={() => void onReload()} />
-        </div>
+      <Card title="Loja" subtitle="A apresentadora usa esse nome na abertura da live.">
+        <Field label="Nome da loja">
+          <input
+            value={storeName}
+            onChange={(e) => setStoreName(e.target.value)}
+            onBlur={() => void api.saveSettings({ storeName: storeName.trim() }).then(onReload)}
+          />
+        </Field>
       </Card>
 
       <Card

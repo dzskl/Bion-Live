@@ -105,11 +105,16 @@ try {
   // Interface sem estilo ja chegou em producao uma vez: o CSS agora vai inline
   // no HTML, e este check garante que continue assim.
   const estilo = await page.evaluate(() => ({
-    // Uma variavel do nosso tema: so existe se a folha de estilo entrou.
-    tema: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(),
-    fonte: getComputedStyle(document.body).fontFamily,
+    // Variaveis do nosso tema: so existem se a folha de estilo entrou.
+    fundo: getComputedStyle(document.documentElement).getPropertyValue('--fundo').trim(),
+    marca: getComputedStyle(document.documentElement).getPropertyValue('--marca').trim(),
+    fundoDoCorpo: getComputedStyle(document.body).backgroundColor,
   }));
-  check('folha de estilo aplicada', estilo.tema === '#0d1017' && /Inter/.test(estilo.fonte), JSON.stringify(estilo));
+  check(
+    'folha de estilo aplicada',
+    estilo.fundo === '#0a0c12' && estilo.marca === '#7c6cf5' && estilo.fundoDoCorpo === 'rgb(10, 12, 18)',
+    JSON.stringify(estilo),
+  );
   const requisicoesCss = await page.evaluate(() =>
     performance.getEntriesByType('resource').filter((r) => r.name.endsWith('.css')).length,
   );
@@ -181,6 +186,18 @@ try {
   check('audio saiu pela voz do navegador, sem cabo virtual', spoken.length > 0, `${spoken.length} falas`);
 
   check('painel tem exatamente 3 numeros', (await page.locator('.numbers .number').count()) === 3);
+
+  // ------------------------------------------------ navegacao lateral (v3)
+  const lateral = page.locator('.lateral');
+  check('a navegacao lateral existe', (await lateral.count()) === 1);
+  const itensEmBreve = page.locator('.lateral-item.em-breve');
+  check('itens em breve aparecem no menu', (await itensEmBreve.count()) === 4, `${await itensEmBreve.count()} itens`);
+  check(
+    'todo item em breve vem etiquetado',
+    (await page.locator('.lateral-item.em-breve .tag-breve').count()) === 4,
+  );
+  // Nenhum cadeado: cadeado sugere que existe algo pronto atras dele.
+  check('nenhum item promete desbloqueio por plano', !/assine|desbloque|cadeado|premium/i.test((await lateral.textContent()) ?? ''));
 
   // ------------------------------------------- procedencia dos numeros (Fase 1.1)
   const audiencia = page.locator('.numbers .number').first().locator('strong');
@@ -309,6 +326,29 @@ try {
   check('a live fica bloqueada ate a voz ser resolvida', (await botaoIniciar.count()) === 1 && (await botaoIniciar.isDisabled()));
   check('nada foi falado com voz inglesa', !(await paginaIngles.evaluate(() => window.__falouEmIngles === true)));
   await paginaIngles.close();
+
+  // ------------------------------------ as telas novas nao fingem funcionalidade
+  const irPara = async (nome) => {
+    await page.locator('.lateral-item', { hasText: nome }).first().click();
+    await page.waitForTimeout(250);
+  };
+  await irPara('Início');
+  await page.screenshot({ path: path.join(SHOTS, '5-inicio.png'), fullPage: true });
+  await irPara('Instalação');
+  await page.screenshot({ path: path.join(SHOTS, '6-instalacao.png'), fullPage: true });
+  const comparacao = await page.locator('.comparacao').textContent();
+  check('a tela de instalacao compara os passos lado a lado', /cabo de áudio virtual/i.test(comparacao ?? ''));
+  await irPara('Vozes');
+  await page.screenshot({ path: path.join(SHOTS, '7-vozes.png'), fullPage: true });
+
+  await irPara('Clonagem de voz');
+  const telaBreve = page.locator('.em-breve-tela');
+  await telaBreve.waitFor({ timeout: 5000 });
+  const textoBreve = (await telaBreve.textContent()) ?? '';
+  check('a tela em breve diz que nao existe', /ainda não existe/i.test(textoBreve));
+  check('a tela em breve nao tem nenhum controle acionavel', (await telaBreve.locator('button, input, select').count()) === 0);
+  await page.screenshot({ path: path.join(SHOTS, '8-em-breve.png'), fullPage: true });
+  await irPara('Painel da live');
 
   check(
     'nenhum asset estatico falhou durante toda a sessao',
