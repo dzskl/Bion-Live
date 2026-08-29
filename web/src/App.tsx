@@ -11,6 +11,17 @@ import type { Faults, PublicSettings, SafetyInfo, Snapshot, VoiceOption } from '
 
 type Tab = 'painel' | 'produtos' | 'ajustes';
 
+const LOCAIS = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0']);
+
+/**
+ * Rodar sem senha na propria maquina e o padrao. Rodar sem senha numa URL
+ * publica e um vazamento - e facil de nao perceber, entao a interface avisa.
+ */
+function semSenhaNaInternet(acesso: { exigeSenha: boolean } | null): boolean {
+  if (!acesso || acesso.exigeSenha) return false;
+  return !LOCAIS.has(window.location.hostname);
+}
+
 interface Extras {
   voice: VoiceOption;
   safety: SafetyInfo;
@@ -122,6 +133,13 @@ export default function App() {
         </nav>
       </header>
 
+      {semSenhaNaInternet(acesso) && (
+        <div className="banner banner-down offline">
+          <strong>Este painel está aberto na internet sem senha.</strong> Qualquer pessoa com o link vê seus produtos,
+          seus tokens e consegue encerrar sua live. Defina a variável <code>BION_SENHA</code> na hospedagem e faça o
+          deploy de novo.
+        </div>
+      )}
       {offline && <div className="banner banner-down offline">Sem conexão com o servidor. Reconectando…</div>}
 
       <main>

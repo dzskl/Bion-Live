@@ -92,7 +92,20 @@ try {
   const page = await browser.newPage();
   await page.addInitScript(SPEECH_STUB);
   page.on('pageerror', (err) => console.log('  [erro no navegador]', err.message));
-  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await page.goto(BASE, { waitUntil: 'load' });
+
+  // Interface sem estilo ja chegou em producao uma vez: o CSS agora vai inline
+  // no HTML, e este check garante que continue assim.
+  const estilo = await page.evaluate(() => ({
+    // Uma variavel do nosso tema: so existe se a folha de estilo entrou.
+    tema: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(),
+    fonte: getComputedStyle(document.body).fontFamily,
+  }));
+  check('folha de estilo aplicada', estilo.tema === '#0d1017' && /Inter/.test(estilo.fonte), JSON.stringify(estilo));
+  const requisicoesCss = await page.evaluate(() =>
+    performance.getEntriesByType('resource').filter((r) => r.name.endsWith('.css')).length,
+  );
+  check('estilo nao depende de request separado', requisicoesCss === 0, `${requisicoesCss} arquivos .css`);
 
   // ---------------------------------------------------------------- configuracao
   const setupStart = Date.now();
