@@ -184,3 +184,22 @@ audio { width: 100%; }
 .login { display: grid; place-items: center; min-height: 100vh; padding: 20px; }
 .login .card { width: min(360px, 100%); display: flex; flex-direction: column; gap: 12px; text-align: center; }
 .login h1 { font-size: 22px; }
+
+/* Procedência do número: simulado nunca pode parecer medido. */
+.chip-sim {
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #2a1b00;
+  background: var(--warn);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 8px;
+}
+.demo-toggle {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--panel-2); border-radius: 12px; padding: 14px;
+}
+.demo-toggle p { margin: 2px 0 0; }

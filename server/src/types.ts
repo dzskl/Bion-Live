@@ -20,6 +20,7 @@ export interface Settings {
   telegramChatId: string;
   safetyAudio: string; // nome do arquivo em data/safety, vazio = usar o embutido
   onboardingDone: 0 | 1;
+  limiteCaracteresPorLive: number;
 }
 
 export interface LiveSession {
@@ -32,6 +33,7 @@ export interface LiveSession {
   sales: number;
   salesCents: number;
   cursor: number;
+  caracteresPremium: number;
 }
 
 export interface LiveEvent {

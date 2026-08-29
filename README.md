@@ -15,6 +15,8 @@ servir esses dois objetivos.
 | Narração em loop, sem soar robótica | Roteiro montado de quatro conjuntos independentes (abertura, preço, destaque, chamada) girando em passos diferentes, com quebras de engajamento a cada 5 falas. Preço é falado ("89 reais e 90 centavos"), não lido em símbolos. |
 | A live nunca cai sem avisar | Três camadas de failover + watchdog no servidor + alerta no Telegram. Detalhes abaixo. |
 | Painel com 3 números | Assistindo agora, vendas na live, e um indicador verde/amarelo/vermelho. Nada além disso. |
+| Nenhum número falso | Sem integração com o TikTok Shop, audiência e vendas aparecem como `—`, nunca como zero. O modo demo é um botão explícito e marca cada número que produz como **simulado**. |
+| Teto de gasto | A voz premium tem limite de caracteres por live. Ao atingir, ela sai de cena e a voz do navegador assume — mesmo mecanismo do failover, sem fatura surpresa. |
 | Botão de emergência | "Pausar e assumir eu mesmo" cala a IA na hora. Produtos, voz, roteiro e métricas continuam de pé: voltar é um clique. |
 
 ## Como a confiabilidade funciona
@@ -29,12 +31,33 @@ voz nativa do navegador  ← funciona sem cadastro, sem custo, sem instalação
 áudio de segurança em loop  ← trilha embutida, sua gravação, ou mensagem gerada com a voz escolhida
 ```
 
+Um quarto gatilho entra pela mesma porta: estourar o teto de gasto da voz premium tira a voz paga de cena
+exatamente como uma falha dela tiraria. A live não para.
+
+A aba do navegador mantém um oscilador inaudível tocando enquanto narra. Não é firula: o Chrome estrangula
+temporizadores de abas ocultas — depois de cinco minutos, para cerca de uma volta por minuto — e o loop de
+narração depende deles. Abas audíveis são isentas. Medição em `scripts/teste-aba-oculta.mjs`.
+
 Em paralelo, o navegador manda um *heartbeat* a cada 5s. Se ele parar (aba fechada, computador travado, internet
 caiu), um **watchdog no servidor** marca a live como caída e dispara o alerta mesmo sem ninguém olhando a tela.
 Quando qualquer camada acima volta a responder, o sistema sobe sozinho e manda o aviso de normalizado.
 
 Todo alerta sempre aparece no painel, mesmo que o Telegram esteja fora do ar — alerta que some porque o canal
 falhou seria o pior bug possível num produto que vende confiabilidade.
+
+## O produto se diagnostica sozinho
+
+Duas perguntas sobre a hospedagem só se respondem com o tempo, e nenhum lojista deveria ter que caçar a resposta
+num painel de fornecedor:
+
+- **O disco guarda mesmo?** Se os dados fossem efêmeros, o contador de boots voltaria para 1 a cada deploy. Ele
+  passar de 1 é a prova, e ela aparece na tela de verificação.
+- **O plano hiberna?** Um pulso a cada minuto deixa rastro. Buraco no rastro significa processo fora do ar — que é
+  exatamente quando o watchdog de failover não teria como avisar ninguém. Duas quedas longas em 24h e a
+  verificação acusa hibernação.
+
+Na mesma linha: senha com quebra de linha trancaria o lojista para fora do próprio painel, então a tela de login
+diz isso em vez de deixar a pessoa achando que errou a senha.
 
 ## Stack
 
@@ -87,7 +110,18 @@ Manual, para ver e ouvir:
 6. Clique em *Simular aba travada* para ver o watchdog do servidor perceber sozinho.
 7. **Pausar e assumir eu mesmo** e depois **Devolver para a IA**: nada precisa ser reconfigurado.
 
-Testes de unidade do roteiro: `npm test`.
+Testes de unidade (roteiro, autenticação, autodiagnóstico, teto de gasto): `npm test`.
+
+Comportamento da aba em segundo plano — teste longo, roda sob demanda:
+
+```bash
+node scripts/teste-aba-oculta.mjs          # 90s visível + 10min oculta, com e sem keepalive
+MINUTOS_OCULTA=2 node scripts/teste-aba-oculta.mjs   # versão curta
+```
+
+Ele roda duas instâncias em paralelo, idênticas exceto pelo keepalive de áudio. O controle é o que dá sentido ao
+resultado: se nenhuma das duas desacelerar, o ambiente não reproduz o estrangulamento e o teste se declara
+inconclusivo em vez de fingir que provou algo.
 
 ## Colocando no ar
 

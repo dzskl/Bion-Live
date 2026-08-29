@@ -37,7 +37,9 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('painel');
   const [wizard, setWizard] = useState(false);
   const [offline, setOffline] = useState(false);
-  const [acesso, setAcesso] = useState<{ exigeSenha: boolean; autenticado: boolean } | null>(null);
+  const [acesso, setAcesso] = useState<{ exigeSenha: boolean; autenticado: boolean; senhaMalformada?: boolean } | null>(
+    null,
+  );
 
   const reload = useCallback(async () => {
     const estado = await api.authStatus();
@@ -87,7 +89,7 @@ export default function App() {
   }, [extras?.voice.id, extras?.hasElevenLabsKey, extras?.safety.url]);
 
   if (acesso?.exigeSenha && !acesso.autenticado) {
-    return <Login onEntrar={reload} />;
+    return <Login onEntrar={reload} senhaMalformada={acesso.senhaMalformada} />;
   }
 
   if (!snap || !settings || !extras) {
@@ -149,6 +151,7 @@ export default function App() {
             voice={extras.voice}
             safety={extras.safety}
             hasPremium={extras.hasElevenLabsKey}
+            limiteCaracteres={settings.limiteCaracteresPorLive}
             faults={faults}
             onNavigate={() => setTab('ajustes')}
           />

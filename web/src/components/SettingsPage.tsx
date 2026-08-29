@@ -81,6 +81,27 @@ export function SettingsPage({
           </button>
         </div>
         {keyNote && <p className="muted">{keyNote}</p>}
+
+        <Field
+          label="Teto de gasto por live"
+          hint="Ao atingir esse total de caracteres, a voz premium sai de cena e a do navegador assume — a live não para e a fatura não surpreende. Use 0 para não ter teto."
+        >
+          <input
+            type="number"
+            min={0}
+            step={10000}
+            defaultValue={settings.limiteCaracteresPorLive}
+            onBlur={async (e) => {
+              await api.saveSettings({ limiteCaracteresPorLive: Number(e.target.value) });
+              setKeyNote(
+                Number(e.target.value) > 0
+                  ? `Teto salvo: ${Number(e.target.value).toLocaleString('pt-BR')} caracteres por live.`
+                  : 'Teto removido. A voz premium roda sem limite.',
+              );
+              await onReload();
+            }}
+          />
+        </Field>
       </Card>
 
       <Card title="Alerta no celular" subtitle="A funcionalidade mais importante: você fica sabendo antes do público.">

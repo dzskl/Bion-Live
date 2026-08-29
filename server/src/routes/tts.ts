@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { getSettings } from '../db.js';
 import { faults } from '../faults.js';
 import { synthesize, checkKey } from '../tts/elevenlabs.js';
+import { avaliar, registrarConsumo, registrarEstouro } from '../orcamento.js';
+import { reportIncident } from '../engine.js';
 import { findVoice } from '../voices.js';
 
 export const ttsRouter = Router();
@@ -32,11 +34,26 @@ ttsRouter.post('/speak', async (req, res) => {
     return res.status(503).json({ error: 'Falha simulada no provedor de voz', fallback: 'browser' });
   }
 
+  // Estouro de teto sai por 402: para o cliente e o mesmo failover de sempre,
+  // mas ele sabe que nao adianta tentar de novo nesta live.
+  const veredito = avaliar(text.length);
+  if (!veredito.permitido) {
+    registrarEstouro(veredito);
+    reportIncident({
+      component: 'voice',
+      level: 'warn',
+      detail: `${veredito.motivo} A narração continua com a voz do navegador.`,
+      provider: 'browser',
+    });
+    return res.status(402).json({ error: veredito.motivo, fallback: 'browser', motivo: 'orcamento' });
+  }
+
   const voice = findVoice(settings.voiceId);
   const result = await synthesize(settings.elevenLabsApiKey, voice.elevenLabsVoiceId, text);
   if (!result.ok || !result.audio) {
     return res.status(503).json({ error: result.error ?? 'Provedor de voz indisponível', fallback: 'browser' });
   }
+  registrarConsumo(text.length);
   res.set('Content-Type', result.contentType ?? 'audio/mpeg');
   res.set('Cache-Control', 'no-store');
   res.send(result.audio);

@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { getSettings, listProducts } from '../db.js';
+import { fonteDeDados } from '../demo.js';
+import { diagnostico } from '../hospedagem.js';
 import { publish } from '../engine.js';
 import { discoverChatId, checkBot } from '../alerts/telegram.js';
 import { saveSettings } from '../db.js';
@@ -65,6 +67,43 @@ export async function runChecks(): Promise<Check[]> {
       label: `Voz: ${voice.label}`,
       status: 'ok',
       detail: 'Voz nativa do navegador. Não precisa instalar nada nem criar conta.',
+    });
+  }
+
+  const fonte = fonteDeDados();
+  checks.push({
+    id: 'dados-da-live',
+    label: 'Audiência e vendas',
+    status: fonte === 'tiktok' ? 'ok' : 'warn',
+    detail:
+      fonte === 'tiktok'
+        ? 'Números reais vindos do TikTok Shop'
+        : fonte === 'demo'
+          ? 'MODO DEMO ligado: os números na tela são simulados, não medidos.'
+          : 'Sem integração com o TikTok Shop. O painel não mede audiência nem vendas — os dois números aparecem vazios.',
+  });
+
+  // Duas perguntas sobre a hospedagem que so o tempo responde. O produto mede
+  // sozinho em vez de mandar o lojista conferir painel de fornecedor.
+  const hosp = diagnostico();
+  checks.push({
+    id: 'disco',
+    label: 'Os dados sobrevivem a um deploy',
+    status: hosp.persistenciaConfirmada ? 'ok' : 'warn',
+    detail: hosp.persistenciaConfirmada
+      ? `Confirmado: ${hosp.boots} reinícios e os dados continuam aqui desde ${new Date(hosp.primeiroBootEm).toLocaleDateString('pt-BR')}.`
+      : 'Ainda não dá para afirmar. Este é o primeiro boot registrado — force um deploy e volte aqui: se este número não subir, o disco não está guardando nada.',
+  });
+
+  if (hosp.quedas24h.length > 0) {
+    const minutos = Math.round(hosp.maiorQueda24hSegundos / 60);
+    checks.push({
+      id: 'hibernacao',
+      label: 'O servidor fica de pé o tempo todo',
+      status: hosp.hibernando ? 'fail' : 'warn',
+      detail: hosp.hibernando
+        ? `${hosp.quedas24h.length} quedas nas últimas 24h, a maior de ${minutos} min. Isso é padrão de plano que hiberna — e servidor hibernado não dispara alerta de falha.`
+        : `${hosp.quedas24h.length} interrupção(ões) nas últimas 24h, a maior de ${minutos} min. Normal se você fez deploy; preocupante se não fez.`,
     });
   }
 

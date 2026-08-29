@@ -18,7 +18,8 @@ const post = <T>(path: string, data?: unknown) =>
   request<T>(path, { method: 'POST', body: data === undefined ? undefined : JSON.stringify(data) });
 
 export const api = {
-  authStatus: () => request<{ exigeSenha: boolean; autenticado: boolean }>('/api/auth/status'),
+  authStatus: () =>
+    request<{ exigeSenha: boolean; autenticado: boolean; senhaMalformada?: boolean }>('/api/auth/status'),
   login: (senha: string) => post<{ ok: boolean }>('/api/auth/login', { senha }),
   logout: () => post<{ ok: true }>('/api/auth/logout'),
 
@@ -30,7 +31,15 @@ export const api = {
   deleteProduct: (id: number) => request<{ ok: true }>(`/api/products/${id}`, { method: 'DELETE' }),
 
   settings: () => request<{ settings: PublicSettings; voices: VoiceOption[] }>('/api/settings'),
-  saveSettings: (patch: Partial<{ storeName: string; voiceId: string; onboardingDone: boolean; elevenLabsApiKey: string }>) =>
+  saveSettings: (
+    patch: Partial<{
+      storeName: string;
+      voiceId: string;
+      onboardingDone: boolean;
+      elevenLabsApiKey: string;
+      limiteCaracteresPorLive: number;
+    }>,
+  ) =>
     request<{ settings: PublicSettings; keyCheck?: { ok: boolean; error?: string } }>('/api/settings', {
       method: 'PUT',
       body: JSON.stringify(patch),
@@ -70,17 +79,28 @@ export const api = {
   fault: (kind: keyof Faults | 'clear', on = true) => post<{ faults: Faults }>('/api/simulator/fault', { kind, on }),
 };
 
-export async function speakPremium(text: string, signal?: AbortSignal): Promise<Blob | null> {
+/** `ausente` e `orcamento` são caminhos normais, não falhas: em ambos a voz do
+ *  navegador assume e a live segue. Só erro de verdade vira exceção. */
+export type ResultadoPremium =
+  | { tipo: 'audio'; blob: Blob }
+  | { tipo: 'ausente' }
+  | { tipo: 'orcamento'; detalhe: string };
+
+export async function speakPremium(text: string, signal?: AbortSignal): Promise<ResultadoPremium> {
   const res = await fetch('/api/tts/speak', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ text }),
     signal,
   });
-  if (res.status === 409) return null; // sem voz premium configurada: caminho normal
+  if (res.status === 409) return { tipo: 'ausente' };
+  if (res.status === 402) {
+    const corpo = (await res.json().catch(() => ({}))) as { error?: string };
+    return { tipo: 'orcamento', detalhe: corpo.error ?? 'Teto da voz premium atingido' };
+  }
   if (!res.ok) {
     const detail = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     throw new Error((detail as { error?: string }).error ?? `HTTP ${res.status}`);
   }
-  return await res.blob();
+  return { tipo: 'audio', blob: await res.blob() };
 }

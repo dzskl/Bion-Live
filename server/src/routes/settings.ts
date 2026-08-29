@@ -19,6 +19,7 @@ function publicSettings(settings: Settings) {
     telegramChatId: settings.telegramChatId,
     hasTelegramToken: Boolean(settings.telegramBotToken),
     safetyAudio: settings.safetyAudio,
+    limiteCaracteresPorLive: Number(settings.limiteCaracteresPorLive),
     onboardingDone: Boolean(settings.onboardingDone),
   };
 }
@@ -34,6 +35,10 @@ settingsRouter.put('/', async (req, res) => {
   if (typeof body.voiceId === 'string' && VOICES.some((v) => v.id === body.voiceId)) patch.voiceId = body.voiceId;
   if (typeof body.onboardingDone === 'boolean') patch.onboardingDone = body.onboardingDone ? 1 : 0;
   if (typeof body.elevenLabsApiKey === 'string') patch.elevenLabsApiKey = body.elevenLabsApiKey.trim();
+  if (body.limiteCaracteresPorLive !== undefined) {
+    const limite = Number(body.limiteCaracteresPorLive);
+    if (Number.isFinite(limite) && limite >= 0) patch.limiteCaracteresPorLive = Math.round(limite);
+  }
 
   const saved = saveSettings(patch);
   let keyCheck: { ok: boolean; error?: string } | undefined;

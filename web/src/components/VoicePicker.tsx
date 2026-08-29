@@ -22,14 +22,15 @@ export function VoicePicker({
       await api.saveSettings({ voiceId: option.id });
       onSelect(option.id);
       try {
-        const blob = await speakPremium(option.sample);
-        if (blob) {
-          const audio = new Audio(URL.createObjectURL(blob));
+        const resultado = await speakPremium(option.sample);
+        if (resultado.tipo === 'audio') {
+          const audio = new Audio(URL.createObjectURL(resultado.blob));
           await audio.play();
           await new Promise((resolve) => (audio.onended = resolve));
           setPlaying('');
           return;
         }
+        if (resultado.tipo === 'orcamento') setNote(resultado.detalhe);
       } catch {
         setNote('Voz premium indisponível agora — tocando com a voz do navegador.');
       }

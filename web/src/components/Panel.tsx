@@ -8,6 +8,15 @@ function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
+/** Amarelo antes do teto, para o lojista não ser pego de surpresa pela troca de voz. */
+function consumoPremium(usados: number, limite: number): 'ok' | 'warn' | 'down' {
+  if (limite <= 0) return 'ok';
+  const fracao = usados / limite;
+  if (fracao >= 1) return 'down';
+  if (fracao >= 0.8) return 'warn';
+  return 'ok';
+}
+
 const STATUS_TEXT: Record<string, string> = {
   ok: 'Tudo funcionando',
   warn: 'Funcionando com ressalva',
@@ -25,6 +34,7 @@ export function Panel({
   voice,
   safety,
   hasPremium,
+  limiteCaracteres,
   faults,
   onNavigate,
 }: {
@@ -32,6 +42,7 @@ export function Panel({
   voice: VoiceOption;
   safety: SafetyInfo;
   hasPremium: boolean;
+  limiteCaracteres: number;
   faults: Faults;
   onNavigate: (tab: string) => void;
 }) {
@@ -43,6 +54,9 @@ export function Panel({
   useEffect(() => narrator.setFaults(faults), [faults]);
 
   const live = snap.live;
+  // Um numero so aparece se ele for medido de verdade ou explicitamente rotulado
+  // como simulado. Zero seria mentira: da a entender que ninguem esta assistindo.
+  const medido = snap.fonte !== 'nenhuma';
   const running = Boolean(live && live.endedAt === null);
   const manual = live?.mode === 'manual';
   const level = snap.health.overall;
@@ -54,7 +68,6 @@ export function Panel({
       await narrator.unlock(); // precisa estar dentro do clique
       await narrator.configure(voice, hasPremium, safety.url);
       await api.startLive();
-      await api.simulatorStart().catch(() => undefined);
       narrator.start();
     } catch (err) {
       setError((err as Error).message);
@@ -76,7 +89,6 @@ export function Panel({
 
   async function endLive(): Promise<void> {
     narrator.stop();
-    await api.simulatorStop().catch(() => undefined);
     await api.stopLive();
   }
 
@@ -95,15 +107,29 @@ export function Panel({
         </Banner>
       )}
 
+      {snap.fonte === 'demo' && (
+        <Banner kind="warn">
+          <strong>Modo demo ligado.</strong> Audiência e vendas na tela são inventados por um simulador, para você
+          testar o fluxo. Não são medições. Desligue em “Testar o failover” antes de mostrar o painel para alguém.
+        </Banner>
+      )}
+
       <div className="numbers">
         <div className="number">
-          <span className="number-label">Assistindo agora</span>
-          <strong>{live?.viewers ?? 0}</strong>
+          <span className="number-label">
+            Assistindo agora
+            {snap.fonte === 'demo' && <em className="chip-sim">simulado</em>}
+          </span>
+          <strong>{medido ? (live?.viewers ?? 0) : '—'}</strong>
+          {!medido && <span className="muted">Sem integração com o TikTok Shop</span>}
         </div>
         <div className="number">
-          <span className="number-label">Vendas nesta live</span>
-          <strong>{live?.sales ?? 0}</strong>
-          <span className="muted">{money(live?.salesCents ?? 0)}</span>
+          <span className="number-label">
+            Vendas nesta live
+            {snap.fonte === 'demo' && <em className="chip-sim">simulado</em>}
+          </span>
+          <strong>{medido ? (live?.sales ?? 0) : '—'}</strong>
+          <span className="muted">{medido ? money(live?.salesCents ?? 0) : 'Nada é contado ainda'}</span>
         </div>
         <div className={`number status status-${level}`}>
           <span className="number-label">Status</span>
@@ -172,6 +198,13 @@ export function Panel({
           <span>
             <Dot level={snap.health.voice.level} /> Voz: {snap.health.voice.detail}
           </span>
+          {hasPremium && running && (
+            <span>
+              <Dot level={consumoPremium(live?.caracteresPremium ?? 0, limiteCaracteres)} /> Voz premium:{' '}
+              {(live?.caracteresPremium ?? 0).toLocaleString('pt-BR')}
+              {limiteCaracteres > 0 ? ` de ${limiteCaracteres.toLocaleString('pt-BR')} caracteres` : ' caracteres (sem teto)'}
+            </span>
+          )}
           <span>
             <Dot level={snap.health.alerts.level} /> Alertas: {snap.health.alerts.detail}
             {snap.health.alerts.level !== 'ok' && (
@@ -184,7 +217,7 @@ export function Panel({
       </Card>
 
       <EventLog events={snap.events} />
-      <TestLab faults={faults} running={running} />
+      <TestLab faults={faults} running={running} fonte={snap.fonte} />
     </div>
   );
 }
@@ -220,7 +253,7 @@ function EventLog({ events }: { events: LiveEvent[] }) {
   );
 }
 
-function TestLab({ faults, running }: { faults: Faults; running: boolean }) {
+function TestLab({ faults, running, fonte }: { faults: Faults; running: boolean; fonte: Snapshot['fonte'] }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState('');
 
@@ -245,6 +278,24 @@ function TestLab({ faults, running }: { faults: Faults; running: boolean }) {
     >
       {open && (
         <div className="stack">
+          <div className="demo-toggle">
+            <div className="grow">
+              <strong>Modo demo</strong>
+              <p className="muted">
+                Inventa audiência e vendas para você ver o painel se mexer. Os números ficam marcados como simulados
+                enquanto estiver ligado.
+              </p>
+            </div>
+            <button
+              className={`btn ${fonte === 'demo' ? 'on' : ''}`}
+              onClick={async () => {
+                if (fonte === 'demo') await api.simulatorStop();
+                else await api.simulatorStart();
+              }}
+            >
+              {fonte === 'demo' ? 'Desligar demo' : 'Ligar demo'}
+            </button>
+          </div>
           <div className="row gap wrap">
             <button className={`btn ${faults.tts ? 'on' : ''}`} onClick={() => void toggle('tts')}>
               {faults.tts ? 'Religar' : 'Derrubar'} provedor de voz premium

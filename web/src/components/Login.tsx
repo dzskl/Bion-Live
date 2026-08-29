@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 
-export function Login({ onEntrar }: { onEntrar: () => Promise<void> }) {
+export function Login({ onEntrar, senhaMalformada }: { onEntrar: () => Promise<void>; senhaMalformada?: boolean }) {
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
   const [ocupado, setOcupado] = useState(false);
@@ -25,7 +25,14 @@ export function Login({ onEntrar }: { onEntrar: () => Promise<void> }) {
     <div className="login">
       <form className="card" onSubmit={entrar}>
         <h1>Bion Live</h1>
-        <p className="muted">Esta instalação é protegida por senha.</p>
+        {senhaMalformada ? (
+          <p className="error">
+            A senha configurada no servidor tem quebra de linha, então não existe como digitá-la aqui. Corrija a
+            variável <code>BION_SENHA</code> na hospedagem — ela precisa ficar em uma linha só.
+          </p>
+        ) : (
+          <p className="muted">Esta instalação é protegida por senha.</p>
+        )}
         <input
           type="password"
           value={senha}

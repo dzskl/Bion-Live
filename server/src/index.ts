@@ -5,6 +5,7 @@ import path from 'node:path';
 import { PORT, SAFETY_DIR, WEB_DIST } from './config.js';
 import { authRouter, exigeSenha, protegido } from './auth.js';
 import { startWatchdog } from './engine.js';
+import { registrarBoot } from './hospedagem.js';
 import { ensureDefaultSafetyAudio } from './safety.js';
 import { productsRouter } from './routes/products.js';
 import { settingsRouter } from './routes/settings.js';
@@ -57,6 +58,7 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   res.status(500).json({ error: err instanceof Error ? err.message : 'Erro interno' });
 });
 
+const hospedagem = registrarBoot();
 startWatchdog();
 
 app.listen(PORT, () => {
@@ -66,7 +68,19 @@ app.listen(PORT, () => {
   }
   console.log(
     exigeSenha
-      ? '  Acesso protegido por senha (BION_SENHA).\n'
-      : '  Sem senha: defina BION_SENHA antes de expor numa URL publica.\n',
+      ? '  Acesso protegido por senha (BION_SENHA).'
+      : '  Sem senha: defina BION_SENHA antes de expor numa URL pública.',
   );
+  console.log(
+    hospedagem.persistenciaConfirmada
+      ? `  Disco confirmado: ${hospedagem.boots} boots e os dados continuam aqui.`
+      : '  Primeiro boot registrado. Reinicie uma vez para confirmar que o disco guarda.',
+  );
+  if (hospedagem.hibernando) {
+    console.warn(
+      `  ATENÇÃO: ${hospedagem.quedas24h.length} quedas nas últimas 24h (maior: ${hospedagem.maiorQueda24hSegundos}s).` +
+        ' Plano que hiberna desliga o watchdog de failover na prática.',
+    );
+  }
+  console.log('');
 });

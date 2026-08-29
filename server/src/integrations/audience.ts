@@ -1,14 +1,15 @@
 import { currentLive, listProducts } from '../db.js';
+import { definirFonte } from '../demo.js';
 import { registerSale, updateMetrics } from '../engine.js';
 
 /**
- * Fonte de audiencia da live.
+ * Fonte de audiência da live.
  *
- * O MVP roda com a fonte simulada: a API de live do TikTok Shop depende de
- * aprovacao de parceiro, e travar o produto inteiro nisso atrasaria o teste do
- * que importa (narracao + failover + painel). Quando a credencial existir,
- * basta implementar outra fonte com essa mesma interface e trocar em
- * `startAudience`.
+ * A API de live do TikTok Shop depende de aprovação de parceiro, então a única
+ * fonte disponível hoje é a simulada — e ela nunca liga sozinha: é um modo demo
+ * que o lojista aciona de propósito, sempre rotulado na tela. Quando a
+ * credencial existir, basta implementar esta mesma interface com dados reais e
+ * chamar `definirFonte('tiktok')`.
  */
 export interface AudienceSource {
   readonly name: string;
@@ -25,6 +26,7 @@ export class SimulatedAudience implements AudienceSource {
 
   start(): void {
     if (this.timer) return;
+    definirFonte('demo');
     this.ticksSemVenda = 0;
     this.viewers = 40 + Math.floor(Math.random() * 30);
     updateMetrics({ viewers: this.viewers });
@@ -53,6 +55,7 @@ export class SimulatedAudience implements AudienceSource {
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    definirFonte('nenhuma');
   }
 
   isRunning(): boolean {

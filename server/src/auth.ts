@@ -9,8 +9,24 @@ import { Router } from 'express';
  * de ser opcional: sem isso qualquer um com o link ve os produtos, o token do
  * Telegram, a chave da ElevenLabs e consegue derrubar a live do lojista.
  */
-const SENHA = (process.env.BION_SENHA ?? '').trim();
+const SENHA_BRUTA = process.env.BION_SENHA ?? '';
+const SENHA = SENHA_BRUTA.trim();
 export const exigeSenha = SENHA.length > 0;
+
+/**
+ * Senha com quebra de linha tranca o lojista para fora do proprio painel: nao
+ * existe como digitar um "enter" num campo de senha. Ja aconteceu uma vez, ao
+ * colar varias senhas de uma lista. Detectamos e dizemos isso na tela de login,
+ * em vez de deixar a pessoa achando que errou de senha.
+ */
+export const senhaMalformada = exigeSenha && /[\r\n\t]/.test(SENHA);
+
+if (senhaMalformada) {
+  console.error(
+    '\n  [bion] ATENÇÃO: BION_SENHA contém quebra de linha ou tabulação.\n' +
+      '  Ninguém vai conseguir entrar no painel. Deixe a variável com uma linha só.\n',
+  );
+}
 
 const COOKIE = 'bion_sessao';
 const DURACAO_MS = 30 * 24 * 60 * 60 * 1000;
@@ -83,7 +99,7 @@ function registrarTentativa(ip: string): void {
 export const authRouter = Router();
 
 authRouter.get('/status', (req, res) => {
-  res.json({ exigeSenha, autenticado: autenticado(req) });
+  res.json({ exigeSenha, autenticado: autenticado(req), senhaMalformada });
 });
 
 authRouter.post('/login', (req, res) => {

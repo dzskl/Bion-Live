@@ -70,6 +70,39 @@ async function esperarServidor(): Promise<void> {
   throw new Error('servidor nao subiu');
 }
 
+// Senha colada de uma lista, com quebras de linha: tranca o lojista para fora.
+const portaQuebrada = porta + 1;
+const dadosQuebrados = fs.mkdtempSync(path.join(os.tmpdir(), 'bion-senha-'));
+const servidorQuebrado = spawn(process.execPath, ['--import', 'tsx', entrada], {
+  env: {
+    ...process.env,
+    PORT: String(portaQuebrada),
+    BION_DATA_DIR: dadosQuebrados,
+    BION_SENHA: 'primeira-senha\nsegunda-senha\nterceira-senha',
+    NODE_ENV: 'production',
+  },
+  stdio: 'ignore',
+});
+after(() => servidorQuebrado.kill('SIGKILL'));
+
+test('senha com quebra de linha e detectada e explicada', async () => {
+  const base2 = `http://127.0.0.1:${portaQuebrada}`;
+  for (let i = 0; i < 60; i++) {
+    try {
+      if ((await fetch(`${base2}/api/health`)).ok) break;
+    } catch {
+      /* subindo */
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  const status = (await (await fetch(`${base2}/api/auth/status`)).json()) as {
+    exigeSenha: boolean;
+    senhaMalformada: boolean;
+  };
+  assert.equal(status.exigeSenha, true, 'a trava continua ligada');
+  assert.equal(status.senhaMalformada, true, 'o servidor precisa dizer que a senha e indigitavel');
+});
+
 test('com senha ligada, a API fica fechada e a interface aberta', async () => {
   await esperarServidor();
 

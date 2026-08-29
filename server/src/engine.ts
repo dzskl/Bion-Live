@@ -1,6 +1,7 @@
 import { HEARTBEAT_TIMEOUT_MS, WATCHDOG_INTERVAL_MS } from './config.js';
 import { currentLive, db, getSettings, listEvents, listProducts, recordEvent } from './db.js';
 import { broadcast } from './events.js';
+import { fonteDeDados, numerosSaoReais } from './demo.js';
 import { notify } from './alerts/index.js';
 import { lineAt } from './script.js';
 import type {
@@ -71,6 +72,10 @@ export interface Snapshot {
   health: HealthReport;
   productCount: number;
   events: ReturnType<typeof listEvents>;
+  /** De onde vem audiencia e vendas. A interface usa isso para nunca mostrar
+   *  numero simulado como se fosse medido. */
+  fonte: ReturnType<typeof fonteDeDados>;
+  numerosReais: boolean;
 }
 
 export function snapshot(): Snapshot {
@@ -80,6 +85,8 @@ export function snapshot(): Snapshot {
     health: getHealth(),
     productCount: listProducts(true).length,
     events: listEvents(live?.id ?? null, 30),
+    fonte: fonteDeDados(),
+    numerosReais: numerosSaoReais(),
   };
 }
 

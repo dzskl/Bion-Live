@@ -41,6 +41,7 @@ export class Narrator {
   private heartbeatTimer: number | null = null;
   private safetyAudio: HTMLAudioElement | null = null;
   private premiumAudio: HTMLAudioElement | null = null;
+  private contexto: AudioContext | null = null;
   private premiumDownUntil = 0;
   private safetyFailures = 0;
   private faults: Faults = { tts: false, browserVoice: false, heartbeat: false };
@@ -92,8 +93,50 @@ export class Narrator {
     return this.systemVoice?.name ?? '';
   }
 
+  /**
+   * Mantém a aba marcada como "tocando áudio".
+   *
+   * O Chrome estrangula temporizadores de abas em segundo plano — depois de
+   * cinco minutos ocultas, para cerca de uma vez por minuto. O loop de narração
+   * depende desses temporizadores, então o lojista trocar de janela poderia
+   * parar a live. Abas audíveis são isentas dessa restrição, e um oscilador
+   * inaudível basta para a aba contar como audível.
+   */
+  private manterAcordado(): void {
+    if (this.contexto) return;
+    if ((window as unknown as { __bionSemKeepalive?: boolean }).__bionSemKeepalive) return;
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    try {
+      const contexto = new Ctx();
+      const oscilador = contexto.createOscillator();
+      const volume = contexto.createGain();
+      // Baixo o suficiente para ninguém ouvir, alto o suficiente para não ser
+      // tratado como silêncio absoluto.
+      volume.gain.value = 0.0001;
+      oscilador.frequency.value = 30;
+      oscilador.connect(volume).connect(contexto.destination);
+      oscilador.start();
+      this.contexto = contexto;
+      document.addEventListener('visibilitychange', this.retomarContexto);
+    } catch {
+      /* sem Web Audio: o loop segue, só sem a proteção contra throttling */
+    }
+  }
+
+  private retomarContexto = (): void => {
+    if (this.contexto?.state === 'suspended') void this.contexto.resume();
+  };
+
+  private pararKeepalive(): void {
+    document.removeEventListener('visibilitychange', this.retomarContexto);
+    void this.contexto?.close().catch(() => undefined);
+    this.contexto = null;
+  }
+
   /** Precisa acontecer dentro de um clique: navegador não toca áudio sem gesto. */
   async unlock(): Promise<void> {
+    this.manterAcordado();
     if (!this.premiumAudio) {
       this.premiumAudio = new Audio();
       this.premiumAudio.preload = 'auto';
@@ -127,6 +170,7 @@ export class Narrator {
     this.controller = null;
     if (this.heartbeatTimer) window.clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = null;
+    this.pararKeepalive();
     this.stopSafety();
     this.cancelSpeech();
     this.emit({ running: false, paused: false, speaking: false, provider: null, line: null, onSafety: false });
@@ -216,13 +260,20 @@ export class Narrator {
     if (!this.hasPremium) return false;
     if (Date.now() < this.premiumDownUntil) return false;
     try {
-      const blob = await speakPremium(text, signal);
-      if (!blob) {
+      const resultado = await speakPremium(text, signal);
+      if (resultado.tipo === 'ausente') {
         this.hasPremium = false;
         return false;
       }
+      if (resultado.tipo === 'orcamento') {
+        // O teto vale para a live inteira: insistir só gastaria requisição.
+        // O servidor já registrou o evento e alertou.
+        this.hasPremium = false;
+        this.emit({ lastError: resultado.detalhe, speaking: false });
+        return false;
+      }
       this.emit({ provider: 'elevenlabs', speaking: true });
-      await this.playBlob(blob, signal);
+      await this.playBlob(resultado.blob, signal);
       return true;
     } catch (err) {
       if (signal.aborted) return false;

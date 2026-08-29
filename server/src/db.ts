@@ -32,7 +32,10 @@ db.exec(`
     viewers    INTEGER NOT NULL DEFAULT 0,
     sales      INTEGER NOT NULL DEFAULT 0,
     salesCents INTEGER NOT NULL DEFAULT 0,
-    cursor     INTEGER NOT NULL DEFAULT 0
+    cursor     INTEGER NOT NULL DEFAULT 0,
+    -- Quanto da voz premium ja foi gasto nesta live. E o que permite parar
+    -- antes da fatura, em vez de descobrir depois.
+    caracteresPremium INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS events (
@@ -45,6 +48,20 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_events_live ON events(liveId, id DESC);
+
+  -- Autodiagnostico da hospedagem: prova que o disco persiste e detecta
+  -- hibernacao do plano, sem depender de ninguem conferir painel de fornecedor.
+  CREATE TABLE IF NOT EXISTS hospedagem (
+    chave TEXT PRIMARY KEY,
+    valor TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS quedas (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    de       INTEGER NOT NULL,
+    ate      INTEGER NOT NULL,
+    segundos INTEGER NOT NULL
+  );
 `);
 
 const DEFAULT_SETTINGS: Settings = {
@@ -55,6 +72,9 @@ const DEFAULT_SETTINGS: Settings = {
   telegramChatId: process.env.TELEGRAM_CHAT_ID ?? '',
   safetyAudio: '',
   onboardingDone: 0,
+  // 0 = sem teto. O padrao cobre com folga uma live longa antes de cair para a
+  // voz do navegador, que continua narrando de graca.
+  limiteCaracteresPorLive: 150_000,
 };
 
 export function getSettings(): Settings {

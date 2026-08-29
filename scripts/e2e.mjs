@@ -92,6 +92,14 @@ try {
   const page = await browser.newPage();
   await page.addInitScript(SPEECH_STUB);
   page.on('pageerror', (err) => console.log('  [erro no navegador]', err.message));
+
+  // A interface ja subiu sem estilo uma vez em producao. Qualquer asset estatico
+  // que nao responda 200 e falha de build ou de entrega, nunca "so um detalhe".
+  const falhasEstaticas = [];
+  page.on('response', (r) => {
+    const caminho = new URL(r.url()).pathname;
+    if (r.status() >= 400 && !caminho.startsWith('/api/')) falhasEstaticas.push(`${r.status()} ${caminho}`);
+  });
   await page.goto(BASE, { waitUntil: 'load' });
 
   // Interface sem estilo ja chegou em producao uma vez: o CSS agora vai inline
@@ -106,6 +114,28 @@ try {
     performance.getEntriesByType('resource').filter((r) => r.name.endsWith('.css')).length,
   );
   check('estilo nao depende de request separado', requisicoesCss === 0, `${requisicoesCss} arquivos .css`);
+
+  // Cada arquivo publicado precisa ser servido de fato, com o tipo certo.
+  const distDir = path.join(process.cwd(), 'web', 'dist');
+  const publicados = fs
+    .readdirSync(distDir, { recursive: true, withFileTypes: true })
+    .filter((e) => e.isFile())
+    .map((e) => path.posix.join(path.relative(distDir, e.parentPath ?? e.path).split(path.sep).join('/'), e.name))
+    .map((rel) => '/' + rel.replace(/^\/+/, ''));
+  const tiposEsperados = { '.js': /javascript/, '.css': /text\/css/, '.html': /text\/html/, '.svg': /image\/svg/ };
+  const problemas = [];
+  for (const rel of publicados) {
+    const resposta = await fetch(`${BASE}${rel}`);
+    const tipo = resposta.headers.get('content-type') ?? '';
+    const esperado = tiposEsperados[path.extname(rel)];
+    if (!resposta.ok) problemas.push(`${resposta.status} ${rel}`);
+    else if (esperado && !esperado.test(tipo)) problemas.push(`${rel} veio como ${tipo}`);
+  }
+  check(
+    'todo arquivo publicado e servido com o tipo certo',
+    problemas.length === 0,
+    problemas.length ? problemas.join('; ') : `${publicados.length} arquivos conferidos`,
+  );
 
   // ---------------------------------------------------------------- configuracao
   const setupStart = Date.now();
@@ -150,15 +180,36 @@ try {
   const spoken = await page.evaluate(() => window.__spoken ?? []);
   check('audio saiu pela voz do navegador, sem cabo virtual', spoken.length > 0, `${spoken.length} falas`);
 
-  await until('painel com audiencia', async () => Number(await page.locator('.number strong').first().textContent()) > 0);
-  check('painel mostra quem esta assistindo agora', true);
-  await until('painel com vendas', async () => Number((await page.locator('.number').nth(1).locator('strong').textContent())) > 0, 40_000);
-  check('painel conta as vendas da live', true);
   check('painel tem exatamente 3 numeros', (await page.locator('.numbers .number').count()) === 3);
+
+  // ------------------------------------------- procedencia dos numeros (Fase 1.1)
+  const audiencia = page.locator('.numbers .number').first().locator('strong');
+  const vendas = page.locator('.numbers .number').nth(1).locator('strong');
+  check(
+    'sem integracao o painel nao inventa zero',
+    (await audiencia.textContent())?.trim() === '—' && (await vendas.textContent())?.trim() === '—',
+    `audiencia=${(await audiencia.textContent())?.trim()} vendas=${(await vendas.textContent())?.trim()}`,
+  );
+  check('simulador nao liga junto com a live', (await page.locator('.chip-sim').count()) === 0);
   await page.screenshot({ path: path.join(SHOTS, '2-live.png'), fullPage: true });
 
-  // ------------------------------------------------------------------ failover
   await page.getByRole('button', { name: 'Mostrar' }).click();
+  await page.getByRole('button', { name: 'Ligar demo' }).click();
+  await until('audiencia simulada aparece', async () => Number(await audiencia.textContent()) > 0);
+  check('modo demo alimenta o painel quando ligado de proposito', true);
+  check('todo numero simulado vem rotulado', (await page.locator('.chip-sim').count()) === 2, `${await page.locator('.chip-sim').count()} rotulos`);
+  const avisoDemo = await page.locator('.banner-warn').first().textContent();
+  check('banner avisa que os numeros sao inventados', /Modo demo ligado/.test(avisoDemo ?? ''), (avisoDemo ?? '').slice(0, 70));
+  await until('venda simulada aparece', async () => Number(await vendas.textContent()) > 0, 45_000);
+  check('modo demo conta vendas', true);
+  await page.screenshot({ path: path.join(SHOTS, '2b-demo.png'), fullPage: true });
+
+  await page.getByRole('button', { name: 'Desligar demo' }).click();
+  await until('painel volta a nao afirmar nada', async () => (await audiencia.textContent())?.trim() === '—');
+  check('desligar o demo devolve o painel ao estado honesto', (await page.locator('.chip-sim').count()) === 0);
+  await page.getByRole('button', { name: 'Ligar demo' }).click();
+
+  // ------------------------------------------------------------------ failover
   await page.getByRole('button', { name: 'Derrubar voz do navegador' }).click();
   const bannerFalha = page.locator('.banner-down').first();
   await bannerFalha.waitFor({ timeout: 20_000 });
@@ -213,6 +264,12 @@ try {
     return state.live === null;
   });
   check('encerrar live limpa o estado', true);
+
+  check(
+    'nenhum asset estatico falhou durante toda a sessao',
+    falhasEstaticas.length === 0,
+    falhasEstaticas.length ? falhasEstaticas.join('; ') : 'nenhuma resposta >= 400 fora da API',
+  );
 } catch (err) {
   failures++;
   console.log(`FALHA  execucao interrompida - ${err.message}`);

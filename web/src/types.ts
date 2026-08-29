@@ -22,6 +22,7 @@ export interface LiveSession {
   sales: number;
   salesCents: number;
   cursor: number;
+  caracteresPremium: number;
 }
 
 export interface HealthComponent {
@@ -48,11 +49,15 @@ export interface LiveEvent {
   data: string;
 }
 
+export type FonteDeDados = 'nenhuma' | 'demo' | 'tiktok';
+
 export interface Snapshot {
   live: LiveSession | null;
   health: HealthReport;
   productCount: number;
   events: LiveEvent[];
+  fonte: FonteDeDados;
+  numerosReais: boolean;
 }
 
 export interface VoiceOption {
@@ -75,6 +80,7 @@ export interface PublicSettings {
   telegramChatId: string;
   hasTelegramToken: boolean;
   safetyAudio: string;
+  limiteCaracteresPorLive: number;
   onboardingDone: boolean;
 }
 
