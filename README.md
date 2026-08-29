@@ -112,16 +112,20 @@ Manual, para ver e ouvir:
 
 Testes de unidade (roteiro, autenticação, autodiagnóstico, teto de gasto): `npm test`.
 
-Comportamento da aba em segundo plano — teste longo, roda sob demanda:
+Comportamento da aba em segundo plano — teste guiado, precisa de você:
 
 ```bash
-node scripts/teste-aba-oculta.mjs          # 90s visível + 10min oculta, com e sem keepalive
+npm run build && node scripts/teste-aba-oculta.mjs
 MINUTOS_OCULTA=2 node scripts/teste-aba-oculta.mjs   # versão curta
 ```
 
-Ele roda duas instâncias em paralelo, idênticas exceto pelo keepalive de áudio. O controle é o que dá sentido ao
-resultado: se nenhuma das duas desacelerar, o ambiente não reproduz o estrangulamento e o teste se declara
-inconclusivo em vez de fingir que provou algo.
+Abrem duas janelas: uma com a proteção de áudio ligada, outra sem — o controle, sem o qual o resultado não
+significaria nada. Depois da medição inicial o teste pede que você minimize as duas e volte em alguns minutos.
+
+Ele precisa de você porque ocultar uma aba é estado real de janela do sistema. Em headless, e mesmo com janela
+virtual sem gerenciador de janelas, o Chromium continua reportando a página como visível — três rotas foram
+tentadas (segunda página, aba via `window.open`, minimizar por CDP) e nenhuma funcionou. Quando o ambiente não
+reproduz a condição, o teste se declara inconclusivo em vez de fingir que provou algo.
 
 ## Colocando no ar
 
