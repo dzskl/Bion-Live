@@ -209,6 +209,16 @@ try {
   check('desligar o demo devolve o painel ao estado honesto', (await page.locator('.chip-sim').count()) === 0);
   await page.getByRole('button', { name: 'Ligar demo' }).click();
 
+  // ------------------------------------------ medidor de ritmo embutido (Fase 1.5)
+  const ritmoVisivel = await page.locator('.ritmo span').first().locator('strong').textContent();
+  check('o painel mede o ritmo da narracao sozinho', Number(ritmoVisivel) > 0, `${ritmoVisivel} falas/min à vista`);
+  const vereditoRitmo = await page.locator('.ritmo').locator('xpath=following-sibling::div[1]').textContent();
+  check(
+    'o medidor pede mais tempo em vez de concluir cedo demais',
+    /linha de base|minimize/i.test(vereditoRitmo ?? ''),
+    (vereditoRitmo ?? '').slice(0, 70),
+  );
+
   // ------------------------------------------------------------------ failover
   await page.getByRole('button', { name: 'Derrubar voz do navegador' }).click();
   const bannerFalha = page.locator('.banner-down').first();

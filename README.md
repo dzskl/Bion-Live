@@ -112,7 +112,12 @@ Manual, para ver e ouvir:
 
 Testes de unidade (roteiro, autenticação, autodiagnóstico, teto de gasto): `npm test`.
 
-Comportamento da aba em segundo plano — teste guiado, precisa de você:
+**O jeito mais simples de medir a aba em segundo plano é dentro do próprio produto:** com a live no ar, abra
+*Testar o failover* e o painel mostra falas por minuto com a janela à vista e minimizada, com um veredito em
+português. Minimize a janela por 10 minutos e volte. Não precisa de terminal, e mede o seu navegador contra a sua
+instância — que é a combinação que roda nas suas lives.
+
+O script abaixo faz a mesma medição num ambiente controlado, para quem estiver desenvolvendo:
 
 ```bash
 npm run build && node scripts/teste-aba-oculta.mjs

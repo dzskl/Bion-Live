@@ -219,7 +219,7 @@ export function Panel({
       </Card>
 
       <EventLog events={snap.events} />
-      <TestLab faults={faults} running={running} fonte={snap.fonte} />
+      <TestLab faults={faults} running={running} fonte={snap.fonte} narrador={narratorState} />
     </div>
   );
 }
@@ -255,7 +255,87 @@ function EventLog({ events }: { events: LiveEvent[] }) {
   );
 }
 
-function TestLab({ faults, running, fonte }: { faults: Faults; running: boolean; fonte: Snapshot['fonte'] }) {
+const MIN_VISIVEL_MS = 2 * 60_000;
+// O Chrome só aplica o estrangulamento agressivo depois de 5 minutos oculto.
+const MIN_OCULTO_MS = 5 * 60_000;
+const LIMIAR_RITMO = 0.7;
+
+function porMinuto(r: { falas: number; ms: number }): number {
+  return r.ms > 0 ? (r.falas / r.ms) * 60_000 : 0;
+}
+
+function MedidorDeRitmo({ narrador, running }: { narrador: NarratorSnapshot; running: boolean }) {
+  const vis = narrador.ritmoVisivel;
+  const oculto = narrador.ritmoOculto;
+  const minutos = (ms: number) => (ms / 60_000).toFixed(1);
+  const razao = porMinuto(vis) > 0 ? porMinuto(oculto) / porMinuto(vis) : 0;
+
+  let veredito: { kind: 'ok' | 'warn' | 'down' | 'info'; texto: string };
+  if (!running) {
+    veredito = { kind: 'info', texto: 'Inicie a live para medir.' };
+  } else if (vis.ms < MIN_VISIVEL_MS) {
+    veredito = {
+      kind: 'info',
+      texto: `Deixe esta janela à vista por ${minutos(MIN_VISIVEL_MS - vis.ms)} min a mais para formar a linha de base.`,
+    };
+  } else if (oculto.ms < MIN_OCULTO_MS) {
+    veredito = {
+      kind: 'info',
+      texto:
+        oculto.ms === 0
+          ? 'Agora minimize esta janela e vá fazer outra coisa por 10 minutos. Volte aqui depois.'
+          : `Faltam ${minutos(MIN_OCULTO_MS - oculto.ms)} min minimizada. O Chrome só aperta de verdade depois de 5 min.`,
+    };
+  } else if (razao >= LIMIAR_RITMO) {
+    veredito = {
+      kind: 'ok',
+      texto: `A narração manteve ${(razao * 100).toFixed(0)}% do ritmo em segundo plano. A proteção está funcionando na sua máquina.`,
+    };
+  } else {
+    veredito = {
+      kind: 'down',
+      texto: `A narração caiu para ${(razao * 100).toFixed(0)}% do ritmo em segundo plano. A proteção não bastou aqui — vale reportar.`,
+    };
+  }
+
+  return (
+    <div className="demo-toggle">
+      <div className="grow">
+        <strong>A live aguenta a janela minimizada?</strong>
+        <p className="muted">
+          O Chrome desacelera páginas em segundo plano. O Bion se protege disso, e aqui você confere se a proteção
+          funcionou na sua máquina — sem instalar nada.
+        </p>
+        <div className="ritmo">
+          <span>
+            À vista: <strong>{porMinuto(vis).toFixed(1)}</strong> falas/min
+            <em>{minutos(vis.ms)} min medidos</em>
+          </span>
+          <span>
+            Minimizada: <strong>{oculto.ms > 0 ? porMinuto(oculto).toFixed(1) : '—'}</strong> falas/min
+            <em>{minutos(oculto.ms)} min medidos</em>
+          </span>
+        </div>
+        <Banner kind={veredito.kind}>{veredito.texto}</Banner>
+      </div>
+      <button className="btn ghost" onClick={() => narrator.zerarRitmo()} disabled={!running}>
+        Zerar
+      </button>
+    </div>
+  );
+}
+
+function TestLab({
+  faults,
+  running,
+  fonte,
+  narrador,
+}: {
+  faults: Faults;
+  running: boolean;
+  fonte: Snapshot['fonte'];
+  narrador: NarratorSnapshot;
+}) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState('');
 
@@ -298,6 +378,7 @@ function TestLab({ faults, running, fonte }: { faults: Faults; running: boolean;
               {fonte === 'demo' ? 'Desligar demo' : 'Ligar demo'}
             </button>
           </div>
+          <MedidorDeRitmo narrador={narrador} running={running} />
           <div className="row gap wrap">
             <button className={`btn ${faults.tts ? 'on' : ''}`} onClick={() => void toggle('tts')}>
               {faults.tts ? 'Religar' : 'Derrubar'} provedor de voz premium

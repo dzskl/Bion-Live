@@ -2,6 +2,11 @@ import { api, speakPremium } from '../api';
 import type { Faults, ScriptLine, VoiceOption, VoiceProvider } from '../types';
 import { loadVoices, pickVoice, speakWithBrowser } from './browserVoice';
 
+export interface Ritmo {
+  falas: number;
+  ms: number;
+}
+
 export interface NarratorSnapshot {
   running: boolean;
   paused: boolean;
@@ -10,6 +15,11 @@ export interface NarratorSnapshot {
   line: ScriptLine | null;
   lastError: string;
   onSafety: boolean;
+  /** Falas por minuto com a janela à vista e em segundo plano. É a medição que
+   *  responde se o Chrome está estrangulando o loop quando o lojista troca de
+   *  janela — feita pelo próprio produto, sem script nem terminal. */
+  ritmoVisivel: Ritmo;
+  ritmoOculto: Ritmo;
 }
 
 type Listener = (snap: NarratorSnapshot) => void;
@@ -56,11 +66,46 @@ export class Narrator {
     line: null,
     lastError: '',
     onSafety: false,
+    ritmoVisivel: { falas: 0, ms: 0 },
+    ritmoOculto: { falas: 0, ms: 0 },
   };
+
+  private ritmoDesde = 0;
+  private ritmoOcultoAgora = false;
 
   private voice: VoiceOption | null = null;
   private hasPremium = false;
   private safetyUrl = '';
+
+  // ------------------------------------------------------------- medição de ritmo
+  private aoTrocarVisibilidade = (): void => {
+    this.fecharJanelaDeRitmo();
+    this.ritmoOcultoAgora = document.hidden;
+    this.retomarContexto();
+  };
+
+  /** Fecha o intervalo aberto e credita o tempo ao balde certo. */
+  private fecharJanelaDeRitmo(): void {
+    if (!this.ritmoDesde) return;
+    const agora = Date.now();
+    const decorrido = agora - this.ritmoDesde;
+    this.ritmoDesde = agora;
+    if (decorrido <= 0) return;
+    const balde = this.ritmoOcultoAgora ? 'ritmoOculto' : 'ritmoVisivel';
+    this.emit({ [balde]: { ...this.state[balde], ms: this.state[balde].ms + decorrido } } as Partial<NarratorSnapshot>);
+  }
+
+  private contarFala(): void {
+    this.fecharJanelaDeRitmo();
+    const balde = this.ritmoOcultoAgora ? 'ritmoOculto' : 'ritmoVisivel';
+    this.emit({ [balde]: { ...this.state[balde], falas: this.state[balde].falas + 1 } } as Partial<NarratorSnapshot>);
+  }
+
+  zerarRitmo(): void {
+    this.ritmoDesde = Date.now();
+    this.ritmoOcultoAgora = typeof document !== 'undefined' ? document.hidden : false;
+    this.emit({ ritmoVisivel: { falas: 0, ms: 0 }, ritmoOculto: { falas: 0, ms: 0 } });
+  }
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -161,6 +206,8 @@ export class Narrator {
     if (this.state.running) return;
     this.controller = new AbortController();
     this.emit({ running: true, paused: false, lastError: '' });
+    this.zerarRitmo();
+    document.addEventListener('visibilitychange', this.aoTrocarVisibilidade);
     this.startHeartbeat();
     void this.loop(this.controller.signal);
   }
@@ -168,6 +215,9 @@ export class Narrator {
   stop(): void {
     this.controller?.abort();
     this.controller = null;
+    this.fecharJanelaDeRitmo();
+    this.ritmoDesde = 0;
+    document.removeEventListener('visibilitychange', this.aoTrocarVisibilidade);
     if (this.heartbeatTimer) window.clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = null;
     this.pararKeepalive();
@@ -200,6 +250,9 @@ export class Narrator {
 
   private startHeartbeat(): void {
     const beat = (): void => {
+      // Fecha o intervalo mesmo sem fala nova, senão o tempo de uma aba
+      // estrangulada não apareceria na conta.
+      if (!this.state.paused) this.fecharJanelaDeRitmo();
       if (this.faults.heartbeat) return; // simulando aba morta
       void api
         .heartbeat({ provider: this.state.provider, speaking: this.state.speaking, queued: 0 })
@@ -247,6 +300,7 @@ export class Narrator {
   }
 
   private afterSuccess(provider: VoiceProvider): boolean {
+    this.contarFala();
     if (this.state.onSafety) {
       this.stopSafety();
       this.safetyFailures = 0;

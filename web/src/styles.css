@@ -203,3 +203,9 @@ audio { width: 100%; }
   background: var(--panel-2); border-radius: 12px; padding: 14px;
 }
 .demo-toggle p { margin: 2px 0 0; }
+
+.ritmo { display: flex; gap: 24px; flex-wrap: wrap; margin: 10px 0; }
+.ritmo span { display: flex; flex-direction: column; font-size: 14px; color: var(--muted); }
+.ritmo strong { font-size: 22px; color: var(--text); font-variant-numeric: tabular-nums; }
+.ritmo em { font-style: normal; font-size: 12px; }
+.demo-toggle { align-items: flex-start; }
