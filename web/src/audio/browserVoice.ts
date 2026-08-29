@@ -19,11 +19,24 @@ export function loadVoices(timeoutMs = 3000): Promise<SpeechSynthesisVoice[]> {
   });
 }
 
+/** Só vozes que realmente falam português. Nada de "quase". */
+export function vozesEmPortugues(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
+  const normalizada = (v: SpeechSynthesisVoice) => v.lang.replace('_', '-').toLowerCase();
+  const ptBR = voices.filter((v) => normalizada(v).startsWith('pt-br'));
+  return ptBR.length ? ptBR : voices.filter((v) => normalizada(v).startsWith('pt'));
+}
+
+/**
+ * Escolhe a voz do sistema mais próxima da personalidade pedida.
+ *
+ * Devolve `null` quando não existe nenhuma voz em português instalada — e isso
+ * é deliberado. A versão anterior caía para a primeira voz do sistema, que no
+ * Windows costuma ser inglesa: o roteiro em português saía lido com fonética
+ * inglesa, o que é pior do que não narrar. Quem chama precisa tratar o null.
+ */
 export function pickVoice(voices: SpeechSynthesisVoice[], option: VoiceOption): SpeechSynthesisVoice | null {
-  if (!voices.length) return null;
-  const ptBR = voices.filter((v) => v.lang.replace('_', '-').toLowerCase().startsWith('pt-br'));
-  const pt = voices.filter((v) => v.lang.toLowerCase().startsWith('pt'));
-  const pool = ptBR.length ? ptBR : pt;
+  const pool = vozesEmPortugues(voices);
+  if (!pool.length) return null;
   for (const wanted of option.browser.prefer) {
     const hit = pool.find((v) => v.name.toLowerCase().includes(wanted.toLowerCase()));
     if (hit) return hit;
@@ -32,7 +45,7 @@ export function pickVoice(voices: SpeechSynthesisVoice[], option: VoiceOption): 
   const feminine = /(luciana|francisca|maria|joana|ines|female|mulher)/i;
   const masculine = /(felipe|ricardo|daniel|joaquim|male|homem)/i;
   const wanted = option.gender === 'f' ? feminine : masculine;
-  return pool.find((v) => wanted.test(v.name)) ?? pool[0] ?? voices[0] ?? null;
+  return pool.find((v) => wanted.test(v.name)) ?? pool[0] ?? null;
 }
 
 export interface BrowserSpeakOptions {

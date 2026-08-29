@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, speakPremium } from '../api';
-import { loadVoices, pickVoice, speakWithBrowser } from '../audio/browserVoice';
+import { loadVoices, pickVoice, speakWithBrowser, vozesEmPortugues } from '../audio/browserVoice';
 import type { VoiceOption } from '../types';
+import { Banner } from './ui';
 
 export function VoicePicker({
   voices,
@@ -14,6 +15,13 @@ export function VoicePicker({
 }) {
   const [playing, setPlaying] = useState('');
   const [note, setNote] = useState('');
+  const [semPortugues, setSemPortugues] = useState(false);
+
+  // Descobrir isso só na hora de tocar seria tarde: o lojista já teria escolhido
+  // uma voz que o navegador dele não sabe falar.
+  useEffect(() => {
+    void loadVoices().then((lista) => setSemPortugues(lista.length > 0 && vozesEmPortugues(lista).length === 0));
+  }, []);
 
   async function preview(option: VoiceOption): Promise<void> {
     setPlaying(option.id);
@@ -52,6 +60,15 @@ export function VoicePicker({
 
   return (
     <>
+      {semPortugues && (
+        <Banner kind="down">
+          <strong>Este navegador não tem voz em português instalada.</strong> Sem ela, a narração gratuita sairia
+          lendo o português com sotaque inglês — então ela fica bloqueada. Abra o Bion Live no <strong>Google
+          Chrome</strong> (o Brave costuma desativar as vozes online), ou instale o pacote de fala em Configurações →
+          Hora e Idioma → Idioma → Português (Brasil) → Opções → Fala. Uma chave da ElevenLabs também resolve, e não
+          depende do sistema.
+        </Banner>
+      )}
       <div className="voice-grid">
         {voices.map((voice) => (
           <button

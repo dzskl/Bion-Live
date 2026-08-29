@@ -275,6 +275,41 @@ try {
   });
   check('encerrar live limpa o estado', true);
 
+  // -------------------------------- navegador sem voz em portugues (regressao)
+  // A versao anterior caia para a primeira voz do sistema, que no Windows e
+  // inglesa: o roteiro em portugues saia com fonetica inglesa.
+  const paginaIngles = await browser.newPage();
+  await paginaIngles.addInitScript(`
+    (() => {
+      const voices = [
+        { name: 'Microsoft David - English (United States)', lang: 'en-US', default: true, localService: true, voiceURI: 'David' },
+        { name: 'Microsoft Zira - English (United States)', lang: 'en-US', default: false, localService: true, voiceURI: 'Zira' },
+      ];
+      const synth = {
+        speaking: false, paused: false, pending: false,
+        getVoices: () => voices,
+        speak(u) { window.__falouEmIngles = true; setTimeout(() => u.onend && u.onend({}), 50); },
+        cancel() {}, pause() {}, resume() {},
+        addEventListener() {}, removeEventListener() {},
+      };
+      Object.defineProperty(window, 'speechSynthesis', { value: synth, configurable: true });
+      window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+    })();
+  `);
+  await paginaIngles.goto(BASE, { waitUntil: 'load' });
+  await paginaIngles.locator('.numbers').waitFor({ timeout: 10_000 });
+  const avisoVoz = paginaIngles.locator('.banner-down').first();
+  await avisoVoz.waitFor({ timeout: 10_000 });
+  check(
+    'sem voz em portugues o painel avisa em vez de narrar errado',
+    /não tem voz em português/i.test((await avisoVoz.textContent()) ?? ''),
+    ((await avisoVoz.textContent()) ?? '').slice(0, 60),
+  );
+  const botaoIniciar = paginaIngles.getByRole('button', { name: 'Resolva a voz para começar' });
+  check('a live fica bloqueada ate a voz ser resolvida', (await botaoIniciar.count()) === 1 && (await botaoIniciar.isDisabled()));
+  check('nada foi falado com voz inglesa', !(await paginaIngles.evaluate(() => window.__falouEmIngles === true)));
+  await paginaIngles.close();
+
   check(
     'nenhum asset estatico falhou durante toda a sessao',
     falhasEstaticas.length === 0,

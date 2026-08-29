@@ -53,6 +53,9 @@ export function Panel({
   useEffect(() => narrator.subscribe(setNarratorState), []);
   useEffect(() => narrator.setFaults(faults), [faults]);
 
+  // Sem voz em português e sem voz premium não existe narração possível: a
+  // gratuita sairia com sotaque inglês, o que é pior do que não narrar.
+  const semVozUsavel = !narratorState.temVozPortugues && !hasPremium;
   const live = snap.live;
   // Um numero so aparece se ele for medido de verdade ou explicitamente rotulado
   // como simulado. Zero seria mentira: da a entender que ninguem esta assistindo.
@@ -96,6 +99,15 @@ export function Panel({
 
   return (
     <div className="stack">
+      {semVozUsavel && (
+        <Banner kind="down">
+          <strong>Seu navegador não tem voz em português instalada.</strong> A narração sairia com sotaque inglês,
+          então ela está bloqueada. Três saídas, da mais rápida para a mais definitiva: abrir o Bion Live no{' '}
+          <strong>Google Chrome</strong> (o Brave costuma desativar as vozes online); instalar o pacote de fala em
+          Windows (Configurações → Hora e Idioma → Idioma → Português (Brasil) → Opções → Fala); ou conectar uma chave
+          da ElevenLabs em Ajustes, que não depende do sistema.
+        </Banner>
+      )}
       {narratorState.onSafety && (
         <Banner kind="down">
           <strong>Áudio de segurança no ar.</strong> A narração falhou e o Bion assumiu com a trilha de espera. Um alerta
@@ -175,8 +187,18 @@ export function Panel({
               </button>
             </>
           ) : (
-            <button className="btn primary big" onClick={() => void startLive()} disabled={busy || snap.productCount === 0}>
-              {snap.productCount === 0 ? 'Cadastre um produto primeiro' : busy ? 'Iniciando…' : 'Iniciar live'}
+            <button
+              className="btn primary big"
+              onClick={() => void startLive()}
+              disabled={busy || snap.productCount === 0 || semVozUsavel}
+            >
+              {snap.productCount === 0
+                ? 'Cadastre um produto primeiro'
+                : semVozUsavel
+                  ? 'Resolva a voz para começar'
+                  : busy
+                    ? 'Iniciando…'
+                    : 'Iniciar live'}
             </button>
           )
         }
@@ -199,6 +221,7 @@ export function Panel({
           </span>
           <span>
             <Dot level={snap.health.voice.level} /> Voz: {snap.health.voice.detail}
+            {narratorState.nomeDaVoz && ` (${narratorState.nomeDaVoz})`}
           </span>
           {hasPremium && running && (
             <span>

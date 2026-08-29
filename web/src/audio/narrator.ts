@@ -1,6 +1,6 @@
 import { api, speakPremium } from '../api';
 import type { Faults, ScriptLine, VoiceOption, VoiceProvider } from '../types';
-import { loadVoices, pickVoice, speakWithBrowser } from './browserVoice';
+import { loadVoices, pickVoice, speakWithBrowser, vozesEmPortugues } from './browserVoice';
 
 export interface Ritmo {
   falas: number;
@@ -20,6 +20,10 @@ export interface NarratorSnapshot {
    *  janela — feita pelo próprio produto, sem script nem terminal. */
   ritmoVisivel: Ritmo;
   ritmoOculto: Ritmo;
+  /** Se o navegador do lojista tem voz em português instalada. Sem isso a
+   *  narração gratuita não existe — só a premium. */
+  temVozPortugues: boolean;
+  nomeDaVoz: string;
 }
 
 type Listener = (snap: NarratorSnapshot) => void;
@@ -57,6 +61,7 @@ export class Narrator {
   private faults: Faults = { tts: false, browserVoice: false, heartbeat: false };
   private voices: SpeechSynthesisVoice[] = [];
   private systemVoice: SpeechSynthesisVoice | null = null;
+  private temVozPortugues = false;
 
   private state: NarratorSnapshot = {
     running: false,
@@ -68,6 +73,8 @@ export class Narrator {
     onSafety: false,
     ritmoVisivel: { falas: 0, ms: 0 },
     ritmoOculto: { falas: 0, ms: 0 },
+    temVozPortugues: true,
+    nomeDaVoz: '',
   };
 
   private ritmoDesde = 0;
@@ -132,6 +139,13 @@ export class Narrator {
     this.safetyUrl = safetyUrl;
     this.voices = await loadVoices();
     this.systemVoice = pickVoice(this.voices, voice);
+    this.temVozPortugues = vozesEmPortugues(this.voices).length > 0;
+    this.emit({ temVozPortugues: this.temVozPortugues, nomeDaVoz: this.systemVoice?.name ?? '' });
+  }
+
+  /** O que o navegador do lojista realmente tem para oferecer. */
+  vozDoNavegador(): { temPortugues: boolean; nome: string; total: number } {
+    return { temPortugues: this.temVozPortugues, nome: this.systemVoice?.name ?? '', total: this.voices.length };
   }
 
   systemVoiceName(): string {
@@ -347,6 +361,12 @@ export class Narrator {
       return false;
     }
     if (!this.voice) return false;
+    if (!this.systemVoice) {
+      // Falar português com voz inglesa é pior do que não falar: sai
+      // incompreensível para quem está assistindo.
+      this.emit({ speaking: false, lastError: 'Nenhuma voz em português instalada neste navegador' });
+      return false;
+    }
     try {
       this.emit({ provider: 'browser', speaking: true });
       await speakWithBrowser(text, {
