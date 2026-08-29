@@ -89,6 +89,8 @@ export function Panel({
 
   async function endLive(): Promise<void> {
     narrator.stop();
+    // O demo é por live: encerrar a live não pode deixar números inventados na tela.
+    await api.simulatorStop().catch(() => undefined);
     await api.stopLive();
   }
 
